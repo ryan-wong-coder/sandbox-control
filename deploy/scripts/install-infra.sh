@@ -27,7 +27,7 @@ chmod +x deploy/scripts/preflight.sh
 bash deploy/scripts/preflight.sh || true
 
 mkdir -p deploy/wheels
-python3 -m pip download -r deploy/requirements-runtime.txt --dest deploy/wheels
+python3 -m pip download --retries 1 --timeout 15 --progress-bar off -r deploy/requirements-runtime.txt --dest deploy/wheels
 
 COMPOSE_PROGRESS=plain docker compose --progress plain -f deploy/compose.yml up -d --build
 docker compose -f deploy/compose.yml ps
