@@ -117,6 +117,8 @@ class CodexAuthStatus(BaseModel):
     fallback_api_key: bool = False
     login_url: str | None = None
     user_code: str | None = None
+    last_error_key: str | None = None
+    last_error_params: dict[str, Any] = Field(default_factory=dict)
 
 
 class CodexLoginStartResponse(BaseModel):

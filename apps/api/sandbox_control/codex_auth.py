@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import queue
+import re
 import secrets
 import shutil
 import subprocess
@@ -38,12 +39,16 @@ class CodexAuthManager:
                 token_fingerprint=None,
                 last_checked_at=now_iso(),
                 fallback_api_key=self.status_for(user_id).fallback_api_key,
+                last_error_key="codex.login.mock_disabled",
             )
         else:
             status = self._try_real_device_auth(user_id, auth_home, login_id)
         self.store.codex_auth[user_id] = status
         message_key = "codex.login.failed" if status.state == "failed" else "codex.login.started"
-        return login_id, status, ApiMessage(code=message_key, message_key=message_key)
+        params = dict(status.last_error_params)
+        if status.last_error_key:
+            params["reason_key"] = status.last_error_key
+        return login_id, status, ApiMessage(code=message_key, message_key=message_key, params=params)
 
     def _try_real_device_auth(self, user_id: str, auth_home: Path, login_id: str) -> CodexAuthStatus:
         if not shutil.which(self.settings.codex_command):
@@ -52,6 +57,7 @@ class CodexAuthManager:
                 state="failed",
                 last_checked_at=now_iso(),
                 fallback_api_key=self.status_for(user_id).fallback_api_key,
+                last_error_key="codex.login.codex_missing",
             )
         try:
             process = subprocess.Popen(
@@ -63,6 +69,7 @@ class CodexAuthManager:
                 stderr=subprocess.STDOUT,
             )
             lines: queue.Queue[str] = queue.Queue()
+            output_lines: list[str] = []
 
             def read_output() -> None:
                 if not process.stdout:
@@ -75,10 +82,17 @@ class CodexAuthManager:
             deadline = time.time() + 8
             while time.time() < deadline and not login_url:
                 try:
-                    login_url = _extract_url(lines.get(timeout=0.5))
+                    line = lines.get(timeout=0.5)
+                    output_lines.append(line)
+                    login_url = _extract_url(line)
                 except queue.Empty:
                     if process.poll() is not None:
                         break
+            while True:
+                try:
+                    output_lines.append(lines.get_nowait())
+                except queue.Empty:
+                    break
             if not login_url and process.poll() is None:
                 process.terminate()
         except Exception:
@@ -87,7 +101,9 @@ class CodexAuthManager:
                 state="failed",
                 last_checked_at=now_iso(),
                 fallback_api_key=self.status_for(user_id).fallback_api_key,
+                last_error_key="codex.login.spawn_failed",
             )
+        error_key, error_params = _classify_login_error("".join(output_lines)) if not login_url else (None, {})
         return CodexAuthStatus(
             mode="chatgpt",
             state="pending" if login_url else "failed",
@@ -95,6 +111,8 @@ class CodexAuthManager:
             fallback_api_key=self.status_for(user_id).fallback_api_key,
             login_url=login_url,
             user_code=login_id[-6:].upper() if login_url else None,
+            last_error_key=error_key,
+            last_error_params=error_params,
         )
 
     def cancel_login(self, user_id: str) -> CodexAuthStatus:
@@ -138,3 +156,18 @@ def _extract_url(text: str) -> str | None:
         if token.startswith("http://") or token.startswith("https://"):
             return token
     return None
+
+
+def _classify_login_error(output: str) -> tuple[str, dict[str, str]]:
+    detail = _safe_detail(output)
+    if "error sending request" in output.lower():
+        return "codex.login.network_error", {"detail": detail}
+    if not output.strip():
+        return "codex.login.no_login_url", {}
+    return "codex.login.failed_detail", {"detail": detail}
+
+
+def _safe_detail(output: str) -> str:
+    compact = " ".join(output.strip().split())
+    compact = re.sub(r"https?://\S+", "<url>", compact)
+    return compact[:300]

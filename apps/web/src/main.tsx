@@ -38,6 +38,8 @@ type CodexAuthStatus = {
   login_url?: string
   user_code?: string
   token_fingerprint?: string
+  last_error_key?: string
+  last_error_params?: Record<string, string>
 }
 type DashboardSnapshot = {
   user: User
@@ -78,6 +80,12 @@ const dict: Record<Locale, Record<string, string>> = {
     codexAccount: 'Codex 账号',
     startChatGptLogin: '启动 ChatGPT 登录',
     saveApiKey: '保存 API Key 备用',
+    'codex.login.network_error': '服务器无法访问 OpenAI Auth/ChatGPT 出站 HTTPS，ChatGPT 登录暂不可用',
+    'codex.login.codex_missing': '服务器未找到 Codex CLI',
+    'codex.login.spawn_failed': '服务器启动 Codex 登录进程失败',
+    'codex.login.no_login_url': 'Codex CLI 未返回登录 URL',
+    'codex.login.failed_detail': 'Codex CLI 登录失败',
+    'codex.login.mock_disabled': '测试模式不会生成真实 ChatGPT 登录会话',
     logout: '退出',
     approve: '批准',
     reject: '拒绝',
@@ -115,6 +123,12 @@ const dict: Record<Locale, Record<string, string>> = {
     codexAccount: 'Codex Account',
     startChatGptLogin: 'Start ChatGPT Login',
     saveApiKey: 'Save API Key Fallback',
+    'codex.login.network_error': 'The server cannot reach OpenAI Auth/ChatGPT outbound HTTPS, so ChatGPT login is unavailable',
+    'codex.login.codex_missing': 'Codex CLI was not found on the server',
+    'codex.login.spawn_failed': 'The server failed to start the Codex login process',
+    'codex.login.no_login_url': 'Codex CLI did not return a login URL',
+    'codex.login.failed_detail': 'Codex CLI login failed',
+    'codex.login.mock_disabled': 'Test mode does not create a real ChatGPT login session',
     logout: 'Log out',
     approve: 'Approve',
     reject: 'Reject',
@@ -390,7 +404,7 @@ function AuditTrail({ locale, audit }: { locale: Locale; audit: AuditEvent[] }) 
 }
 
 function CodexAccountPanel({ locale, status, onStartLogin }: { locale: Locale; status: CodexAuthStatus; onStartLogin: () => void }) {
-  return <section className="panel codex-panel"><div className="panel-title"><h2>{tr(locale, 'codexAccount')}</h2><span>{status.mode}</span></div><div className={`account-state ${status.state}`}>{status.state}</div>{status.login_url ? <code className="login-url">{status.login_url}</code> : null}{status.user_code ? <div className="user-code">{status.user_code}</div> : null}<button className="primary-action" onClick={onStartLogin}>{tr(locale, 'startChatGptLogin')}</button><button className="ghost-action">{tr(locale, 'saveApiKey')}</button></section>
+  return <section className="panel codex-panel"><div className="panel-title"><h2>{tr(locale, 'codexAccount')}</h2><span>{status.mode}</span></div><div className={`account-state ${status.state}`}>{status.state}</div>{status.login_url ? <code className="login-url">{status.login_url}</code> : null}{status.user_code ? <div className="user-code">{status.user_code}</div> : null}{status.last_error_key ? <p className="error-text">{tr(locale, status.last_error_key)}{status.last_error_params?.detail ? <small>{status.last_error_params.detail}</small> : null}</p> : null}<button className="primary-action" onClick={onStartLogin}>{tr(locale, 'startChatGptLogin')}</button><button className="ghost-action">{tr(locale, 'saveApiKey')}</button></section>
 }
 
 function ResourcePanel({ run }: { run: CodexRun }) {

@@ -247,6 +247,7 @@ code, pre { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace
 .meter { display: grid; gap: 6px; margin: 8px 0; }
 .meter em { color: #8fa29e; font-style: normal; font-size: 12px; }
 .error-text { color: #ff5964; font-size: 13px; }
+.error-text small { display: block; margin-top: 6px; color: #b89483; line-height: 1.4; }
 
 .chat-layout { margin-top: 14px; display: grid; grid-template-columns: 280px minmax(520px, 1fr) 420px; gap: 10px; min-height: calc(100vh - 70px); }
 .chat-sessions, .chat-thread, .chat-side { min-height: 0; }
