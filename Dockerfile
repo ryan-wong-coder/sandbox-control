@@ -4,13 +4,13 @@ FROM python:3.12 AS api
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
-COPY --from=node_runtime /usr/local/bin/npm /usr/local/bin/npm
-COPY --from=node_runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
 COPY deploy/npm ./deploy/npm
-RUN npm install -g --omit=optional ./deploy/npm/openai-codex-0.130.0.tgz \
+RUN mkdir -p /usr/local/lib/node_modules/@openai/codex \
+  && tar -xzf ./deploy/npm/openai-codex-0.130.0.tgz -C /usr/local/lib/node_modules/@openai/codex --strip-components=1 \
   && mkdir -p /tmp/codex-platform \
   && tar -xzf ./deploy/npm/openai-codex-0.130.0-linux-x64.tgz -C /tmp/codex-platform \
   && cp -a /tmp/codex-platform/package/vendor /usr/local/lib/node_modules/@openai/codex/vendor \
+  && chmod +x /usr/local/lib/node_modules/@openai/codex/bin/codex.js \
   && rm -rf /tmp/codex-platform
 RUN ln -sf /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex
 COPY deploy/requirements-runtime.txt ./deploy/requirements-runtime.txt
