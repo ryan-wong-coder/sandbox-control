@@ -3,6 +3,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      network: host
     image: sandbox-control:local
     env_file:
       - ../.env
