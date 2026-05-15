@@ -11,6 +11,8 @@ services:
       SANDBOX_CONTROL_API_HOST: 0.0.0.0
       SANDBOX_CONTROL_API_PORT: "8080"
       SANDBOX_CONTROL_FRONTEND_DIST: apps/web/dist
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     devices:

@@ -25,10 +25,17 @@ def _run(command: list[str], timeout: int = 3) -> tuple[int, str]:
         return 127, str(exc)
 
 
+def _check_tcp(host: str, port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(0.4)
+            return sock.connect_ex((host, port)) == 0
+    except OSError:
+        return False
+
+
 def _check_port(port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.4)
-        return sock.connect_ex(("127.0.0.1", port)) == 0
+    return _check_tcp("127.0.0.1", port)
 
 
 def run_preflight() -> InfraPreflight:
@@ -149,21 +156,21 @@ def _version(command: list[str]) -> str | None:
     return output.splitlines()[0][:80]
 
 
-def _health_for_port(port: int, healthy: str, missing: str) -> tuple[str, str]:
-    return ("healthy", healthy) if _check_port(port) else ("failed", missing)
+def _health_for_endpoint(host: str, port: int, healthy: str) -> tuple[str, str]:
+    return ("healthy", healthy) if _check_tcp(host, port) else ("failed", f"{host}:{port} closed")
 
 
 def component_health() -> list[ComponentHealth]:
     kvm_ok = Path("/dev/kvm").exists() and os.access("/dev/kvm", os.R_OK | os.W_OK)
     firecracker_version = _version(["firecracker", "--version"]) if shutil.which("firecracker") else None
     docker_version = _version(["docker", "version", "--format", "{{.Server.Version}}"]) if shutil.which("docker") else None
-    consul_status, consul_summary = _health_for_port(8500, "HTTP API reachable", "port 8500 closed")
-    nomad_status, nomad_summary = _health_for_port(4646, "HTTP API reachable", "port 4646 closed")
-    postgres_status, postgres_summary = _health_for_port(5432, "port 5432 reachable", "port 5432 closed")
-    redis_status, redis_summary = _health_for_port(6379, "port 6379 reachable", "port 6379 closed")
-    minio_status, minio_summary = _health_for_port(9000, "port 9000 reachable", "port 9000 closed")
-    registry_status, registry_summary = _health_for_port(5000, "port 5000 reachable", "port 5000 closed")
-    edge_status, edge_summary = _health_for_port(8088, "reverse proxy reachable", "port 8088 closed")
+    consul_status, consul_summary = _health_for_endpoint("consul", 8500, "HTTP API reachable")
+    nomad_status, nomad_summary = _health_for_endpoint("host.docker.internal", 4646, "HTTP API reachable")
+    postgres_status, postgres_summary = _health_for_endpoint("postgres", 5432, "database port reachable")
+    redis_status, redis_summary = _health_for_endpoint("redis", 6379, "queue port reachable")
+    minio_status, minio_summary = _health_for_endpoint("minio", 9000, "object API reachable")
+    registry_status, registry_summary = _health_for_endpoint("registry", 5000, "registry API reachable")
+    edge_status, edge_summary = _health_for_endpoint("edge-proxy", 8088, "reverse proxy reachable")
 
     return [
         ComponentHealth(id="kvm", label="KVM", status="healthy" if kvm_ok else "failed", version="host", summary="read/write /dev/kvm" if kvm_ok else "/dev/kvm unavailable", sparkline=[78, 80, 83, 82, 86]),
