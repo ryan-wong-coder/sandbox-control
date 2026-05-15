@@ -1,1 +1,3 @@
-Sandbox Control currently contains original source code plus design and architecture patterns inspired by mature infrastructure dashboards and open-source Codex/E2B ecosystem projects. No third-party source files are vendored in this initial implementation.
+Sandbox Control currently contains original source code plus design and architecture patterns inspired by mature infrastructure dashboards and open-source Codex/E2B ecosystem projects.
+
+The repository vendors npm release artifacts for @openai/codex 0.130.0 and the linux-x64 runtime package so internal deployments do not depend on live npm registry access during Docker builds. Those artifacts are distributed under Apache-2.0 by OpenAI.

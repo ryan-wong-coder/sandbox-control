@@ -1,6 +1,5 @@
 FROM node:24-bookworm-slim AS web
 WORKDIR /app/apps/web
-RUN npm install -g @openai/codex@0.130.0
 COPY apps/web/package*.json ./
 RUN npm install
 COPY apps/web ./
@@ -14,7 +13,14 @@ RUN apt-get update \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 COPY --from=web /usr/local/bin/node /usr/local/bin/node
-COPY --from=web /usr/local/lib/node_modules/@openai/codex /usr/local/lib/node_modules/@openai/codex
+COPY --from=web /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=web /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+COPY deploy/npm ./deploy/npm
+RUN npm install -g --omit=optional ./deploy/npm/openai-codex-0.130.0.tgz \
+  && mkdir -p /tmp/codex-platform \
+  && tar -xzf ./deploy/npm/openai-codex-0.130.0-linux-x64.tgz -C /tmp/codex-platform \
+  && cp -a /tmp/codex-platform/package/vendor /usr/local/lib/node_modules/@openai/codex/vendor \
+  && rm -rf /tmp/codex-platform
 RUN ln -sf /usr/local/lib/node_modules/@openai/codex/bin/codex.js /usr/local/bin/codex
 COPY deploy/requirements-runtime.txt ./deploy/requirements-runtime.txt
 COPY deploy/wheels ./deploy/wheels
