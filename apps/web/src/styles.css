@@ -176,6 +176,11 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0; }
 .run-queue { grid-row: span 2; }
 .panel-title { margin-bottom: 10px; }
 .filter { display: flex; align-items: center; margin-bottom: 10px; }
+.create-run-form { display: grid; gap: 8px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #162b31; }
+.create-run-form label { display: grid; gap: 5px; color: #9fb1ad; font-size: 12px; }
+.create-run-form textarea { min-height: 82px; }
+.empty-state { min-height: 96px; display: grid; place-items: center; padding: 16px; border: 1px dashed #214049; border-radius: 5px; color: #8fa29e; text-align: center; line-height: 1.45; }
+.empty-conversation { margin-top: 14px; min-height: 360px; display: grid; place-items: center; text-align: center; }
 .run-list { display: grid; gap: 6px; }
 .run-row {
   width: 100%;

@@ -26,7 +26,7 @@ class Settings:
             port=int(os.getenv("SANDBOX_CONTROL_API_PORT", "8080")),
             secret_key=os.getenv("SANDBOX_CONTROL_SECRET_KEY", "dev-only-secret-key"),
             admin_password=os.getenv("SANDBOX_CONTROL_ADMIN_PASSWORD", "sandbox-control-admin"),
-            codex_login_mode=os.getenv("SANDBOX_CONTROL_CODEX_LOGIN_MODE", "mock"),
+            codex_login_mode=os.getenv("SANDBOX_CONTROL_CODEX_LOGIN_MODE", "real"),
             codex_command=os.getenv("SANDBOX_CONTROL_CODEX_COMMAND", "codex"),
             frontend_dist=root / os.getenv("SANDBOX_CONTROL_FRONTEND_DIST", "apps/web/dist"),
             runtime_dir=root / "apps/api/.runtime",

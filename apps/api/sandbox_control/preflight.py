@@ -26,6 +26,8 @@ def _run(command: list[str], timeout: int = 3) -> tuple[int, str]:
 
 
 def _check_tcp(host: str, port: int) -> bool:
+    if host not in {"127.0.0.1", "localhost", "host.docker.internal"} and not Path("/.dockerenv").exists():
+        return False
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.settimeout(0.4)

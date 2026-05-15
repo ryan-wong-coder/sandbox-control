@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 
 type Locale = 'zh-CN' | 'en-US'
 type Page = 'codexSessions' | 'conversations' | 'infra' | 'secrets'
-
 type User = { id: string; username: string; display_name: string; role: string; locale: Locale }
 type InfraCheck = { id: string; label: string; status: 'pass' | 'warn' | 'fail'; summary: string; detail: string }
-type RunEvent = { id: string; at: string; level: 'info' | 'warn' | 'error' | 'pass'; message: string }
+type RunEvent = { id: string; at: string; level: 'info' | 'warn' | 'error' | 'pass'; event_type: string; message: string }
 type AuditEvent = { id: string; at: string; actor_name: string; event_code: string; resource: string }
 type WorkflowStep = { id: string; label: string; status: 'complete' | 'active' | 'pending' | 'failed'; at?: string }
 type CodexRun = {
   id: string
   repo: string
   branch: string
+  prompt: string
   sandbox_id: string
   template: string
   owner_name: string
@@ -43,7 +43,7 @@ type DashboardSnapshot = {
   user: User
   preflight: { checked_at: string; overall_status: 'pass' | 'warn' | 'fail'; overall_score: number; checks: InfraCheck[] }
   runs: CodexRun[]
-  selected_run: CodexRun
+  selected_run: CodexRun | null
   events: RunEvent[]
   audit: AuditEvent[]
   codex_auth: CodexAuthStatus
@@ -53,125 +53,78 @@ type DashboardSnapshot = {
 const dict: Record<Locale, Record<string, string>> = {
   'zh-CN': {
     app: 'Sandbox Control',
-    overview: '总览',
-    sandboxes: 'Sandboxes',
-    codexSessions: 'Codex 会话',
+    codexSessions: 'Codex 运行',
     conversations: '对话',
-    templates: '模板',
-    repos: '代码仓库',
-    secrets: '密钥',
     infra: '基础设施',
-    audit: '审计',
-    settings: '设置',
+    secrets: '密钥',
     loginTitle: '登录 Sandbox Control',
     username: '用户名',
     password: '密码',
     login: '登录',
-    defaultHint: '开发默认账号：admin / sandbox-control-admin',
-    search: '搜索 sandbox、会话、repo、模板',
-    createSandbox: '创建 Sandbox',
-    createRun: '创建 Codex Run',
-    infraPreflight: 'INFRA PREFLIGHT（单机实验）',
-    overallHealth: '整体健康',
-    preflightTitle: '为什么 KVM / Firecracker 会限制单机部署？',
-    preflightText:
-      'KVM 是 Linux 内核的硬件虚拟化接口，Firecracker 是基于 KVM 启动 microVM 的轻量运行时。E2B 沙箱依赖 VM 级隔离；如果服务器没有 VT-x/AMD-V、/dev/kvm、TUN/TAP 或合适的内核权限，只安装 Docker 也无法运行 Firecracker 沙箱。',
+    defaultHint: '默认开发账号：admin / sandbox-control-admin',
+    createRun: '创建真实 Codex Run',
+    repo: '仓库',
+    branch: '分支',
+    prompt: '任务',
+    promptPlaceholder: '告诉 Codex 要真实执行什么，例如：检查 README 并提出改动',
+    startRun: '启动',
+    emptyRuns: '还没有真实 Codex run。创建后这里会显示真实 clone、codex exec、退出码和 diff。',
+    infraPreflight: 'INFRA PREFLIGHT（真实主机检测）',
     runQueue: '运行队列',
-    liveLog: '实时日志',
-    diffSummary: 'Diff 摘要',
-    workflow: '工作流时间线',
-    auditTrail: '审计轨迹',
-    activeSandbox: '活动 Sandbox',
+    liveLog: '真实事件流',
+    diffSummary: '真实 Diff',
+    workflow: '工作流',
+    auditTrail: '审计',
     codexAccount: 'Codex 账号',
     startChatGptLogin: '启动 ChatGPT 登录',
     saveApiKey: '保存 API Key 备用',
-    logoutCodex: '退出 Codex',
+    logout: '退出',
     approve: '批准',
-    requestChanges: '要求修改',
     reject: '拒绝',
     pause: '暂停',
-    resume: '恢复',
     kill: '终止',
-    openIde: '打开 IDE',
-    openSandbox: '打开 Sandbox',
-    quota: '配额',
-    costEstimate: '成本估算',
-    localUsers: '本地用户',
-    patVault: 'PAT Vault',
-    composerPlaceholder: '告诉 Codex 要做什么，或粘贴 issue / 错误日志',
-    send: '发送',
     chatTitle: 'Codex 对话页',
-    toolApprovals: '工具调用与审批',
-    terminal: '终端',
-    files: '文件 / Diff',
+    noConversation: '没有真实会话。先创建一个 Codex run。',
+    composerPlaceholder: '后续会接入持续对话；当前只展示真实 run 事件。',
+    send: '发送',
   },
   'en-US': {
     app: 'Sandbox Control',
-    overview: 'Overview',
-    sandboxes: 'Sandboxes',
-    codexSessions: 'Codex Sessions',
-    conversations: 'Conversations',
-    templates: 'Templates',
-    repos: 'Repos',
-    secrets: 'Secrets',
+    codexSessions: 'Codex Runs',
+    conversations: 'Conversation',
     infra: 'Infra',
-    audit: 'Audit',
-    settings: 'Settings',
+    secrets: 'Secrets',
     loginTitle: 'Sign in to Sandbox Control',
     username: 'Username',
     password: 'Password',
     login: 'Sign in',
     defaultHint: 'Development default: admin / sandbox-control-admin',
-    search: 'Search sandboxes, sessions, repos, templates',
-    createSandbox: 'Create Sandbox',
-    createRun: 'Create Codex Run',
-    infraPreflight: 'INFRA PREFLIGHT (single-node experimental)',
-    overallHealth: 'Overall Health',
-    preflightTitle: 'Why can KVM / Firecracker block single-node deployments?',
-    preflightText:
-      'KVM is the Linux kernel hardware virtualization interface. Firecracker is a lightweight runtime that starts KVM-backed microVMs. E2B isolation depends on VM-level boundaries; without VT-x/AMD-V, /dev/kvm, TUN/TAP, or kernel permissions, Docker alone cannot run Firecracker sandboxes.',
+    createRun: 'Create Real Codex Run',
+    repo: 'Repository',
+    branch: 'Branch',
+    prompt: 'Prompt',
+    promptPlaceholder: 'Tell Codex what to actually execute, e.g. inspect README and propose edits',
+    startRun: 'Start',
+    emptyRuns: 'No real Codex runs yet. After creation this shows real clone, codex exec, exit code, and diff.',
+    infraPreflight: 'INFRA PREFLIGHT (real host checks)',
     runQueue: 'Run Queue',
-    liveLog: 'Live Log Stream',
-    diffSummary: 'Diff Summary',
-    workflow: 'Workflow Timeline',
-    auditTrail: 'Audit Trail',
-    activeSandbox: 'Active Sandbox',
+    liveLog: 'Real Event Stream',
+    diffSummary: 'Real Diff',
+    workflow: 'Workflow',
+    auditTrail: 'Audit',
     codexAccount: 'Codex Account',
     startChatGptLogin: 'Start ChatGPT Login',
     saveApiKey: 'Save API Key Fallback',
-    logoutCodex: 'Log out Codex',
+    logout: 'Log out',
     approve: 'Approve',
-    requestChanges: 'Request Changes',
     reject: 'Reject',
     pause: 'Pause',
-    resume: 'Resume',
     kill: 'Kill',
-    openIde: 'Open in IDE',
-    openSandbox: 'Open Sandbox',
-    quota: 'Quota',
-    costEstimate: 'Cost Estimate',
-    localUsers: 'Local Users',
-    patVault: 'PAT Vault',
-    composerPlaceholder: 'Tell Codex what to do, or paste an issue / error log',
-    send: 'Send',
     chatTitle: 'Codex Conversation Page',
-    toolApprovals: 'Tool Calls & Approvals',
-    terminal: 'Terminal',
-    files: 'Files / Diff',
+    noConversation: 'No real conversation yet. Create a Codex run first.',
+    composerPlaceholder: 'Continuous chat will be wired next; currently this shows real run events.',
+    send: 'Send',
   },
-}
-
-const glyph: Record<string, string> = {
-  overview: '⌘',
-  sandboxes: '▣',
-  codexSessions: '◉',
-  conversations: '☷',
-  templates: '▤',
-  repos: '⌁',
-  secrets: '◇',
-  infra: '⌬',
-  audit: '≣',
-  settings: '⚙',
 }
 
 function tr(locale: Locale, key: string) {
@@ -203,14 +156,17 @@ function App() {
   useEffect(() => localStorage.setItem('sandbox-control-locale', locale), [locale])
   useEffect(() => {
     if (!token) return
-    api<DashboardSnapshot>('/api/dashboard', token)
-      .then(setSnapshot)
-      .catch((err) => {
-        setError(err.message)
-        setToken(null)
-        localStorage.removeItem('sandbox-control-token')
-      })
+    refresh(token).catch((err) => {
+      setError(err.message)
+      setToken(null)
+      localStorage.removeItem('sandbox-control-token')
+    })
   }, [token])
+
+  async function refresh(authToken = token) {
+    if (!authToken) return
+    setSnapshot(await api<DashboardSnapshot>('/api/dashboard', authToken))
+  }
 
   async function login(event: React.FormEvent) {
     event.preventDefault()
@@ -247,87 +203,115 @@ function App() {
       <main className="workspace">
         <CommandBar locale={locale} setLocale={setLocale} logout={() => {
           setToken(null)
+          setSnapshot(null)
           localStorage.removeItem('sandbox-control-token')
         }} />
         {page === 'conversations' ? (
           <ConversationPage locale={locale} snapshot={snapshot} />
         ) : (
-          <ControlPage locale={locale} token={token} snapshot={snapshot} setSnapshot={setSnapshot} />
+          <ControlPage locale={locale} token={token} snapshot={snapshot} refresh={() => refresh()} />
         )}
       </main>
     </div>
   )
 }
 
-function ControlPage({ locale, token, snapshot, setSnapshot }: { locale: Locale; token: string; snapshot: DashboardSnapshot; setSnapshot: (next: DashboardSnapshot) => void }) {
-  const [selectedRun, setSelectedRun] = useState(snapshot.selected_run)
-  async function refresh() {
-    setSnapshot(await api<DashboardSnapshot>('/api/dashboard', token))
-  }
+function ControlPage({ locale, token, snapshot, refresh }: { locale: Locale; token: string; snapshot: DashboardSnapshot; refresh: () => Promise<void> }) {
+  const [selectedId, setSelectedId] = useState(snapshot.selected_run?.id ?? '')
+  const selectedRun = useMemo(
+    () => snapshot.runs.find((run) => run.id === selectedId) ?? snapshot.selected_run ?? snapshot.runs[0] ?? null,
+    [snapshot, selectedId],
+  )
+
   async function action(actionName: string) {
-    const response = await api<{ run: CodexRun }>(`/api/codex-runs/${selectedRun.id}/${actionName}`, token, { method: 'POST' })
-    setSelectedRun(response.run)
+    if (!selectedRun) return
+    await api(`/api/codex-runs/${selectedRun.id}/${actionName}`, token, { method: 'POST' })
     await refresh()
   }
+
   async function startCodexLogin() {
     await api('/api/codex-auth/login/start', token, { method: 'POST' })
     await refresh()
   }
+
   return (
     <>
       <InfraPreflight locale={locale} snapshot={snapshot} />
       <section className="content-grid">
-        <RunQueue locale={locale} runs={snapshot.runs} selectedRun={selectedRun} setSelectedRun={setSelectedRun} />
-        <RunDetail locale={locale} run={selectedRun} onAction={action} />
-        <LogAndDiff locale={locale} run={selectedRun} events={snapshot.events} />
+        <section className="panel run-queue">
+          <div className="panel-title"><h2>{tr(locale, 'runQueue')}</h2><span>{snapshot.runs.length}</span></div>
+          <CreateRunForm locale={locale} token={token} refresh={refresh} />
+          {snapshot.runs.length === 0 ? <div className="empty-state">{tr(locale, 'emptyRuns')}</div> : null}
+          <div className="run-list">{snapshot.runs.map((run) => (
+            <button key={run.id} className={`run-row ${selectedRun?.id === run.id ? 'selected' : ''}`} onClick={() => setSelectedId(run.id)}>
+              <span className={`status-dot ${run.status}`} />
+              <span><strong>{run.id}</strong><small>{run.repo}<br />{run.branch}</small></span>
+              <em>{run.step}</em>
+            </button>
+          ))}</div>
+        </section>
+        {selectedRun ? <RunDetail locale={locale} run={selectedRun} onAction={action} /> : <EmptyPanel text={tr(locale, 'emptyRuns')} />}
+        {selectedRun ? <LogAndDiff locale={locale} run={selectedRun} events={snapshot.events} /> : <EmptyPanel text={tr(locale, 'liveLog')} />}
         <AuditTrail locale={locale} audit={snapshot.audit} />
         <CodexAccountPanel locale={locale} status={snapshot.codex_auth} onStartLogin={startCodexLogin} />
-        <ResourcePanel locale={locale} run={selectedRun} />
+        {selectedRun ? <ResourcePanel run={selectedRun} /> : <EmptyPanel text="No active sandbox" />}
       </section>
     </>
   )
 }
 
+function CreateRunForm({ locale, token, refresh }: { locale: Locale; token: string; refresh: () => Promise<void> }) {
+  const [repo, setRepo] = useState('')
+  const [branch, setBranch] = useState('main')
+  const [prompt, setPrompt] = useState('')
+  const [error, setError] = useState('')
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    setError('')
+    try {
+      await api('/api/codex-runs', token, {
+        method: 'POST',
+        body: JSON.stringify({ repo, branch, prompt, template: 'python-3.11' }),
+      })
+      setPrompt('')
+      await refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  return (
+    <form className="create-run-form" onSubmit={submit}>
+      <label>{tr(locale, 'repo')}<input value={repo} onChange={(event) => setRepo(event.target.value)} placeholder="owner/repo or https://..." /></label>
+      <label>{tr(locale, 'branch')}<input value={branch} onChange={(event) => setBranch(event.target.value)} /></label>
+      <label>{tr(locale, 'prompt')}<textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={tr(locale, 'promptPlaceholder')} /></label>
+      <button className="primary-action" type="submit">{tr(locale, 'startRun')}</button>
+      {error ? <p className="error-text">{error}</p> : null}
+    </form>
+  )
+}
+
 function ConversationPage({ locale, snapshot }: { locale: Locale; snapshot: DashboardSnapshot }) {
-  const run = snapshot.selected_run
+  const run = snapshot.selected_run ?? snapshot.runs[0] ?? null
   const [draft, setDraft] = useState('')
-  const messages = [
-    { role: 'user', body: '修复 runner 超时重试，保持接口兼容。' },
-    { role: 'agent', body: '我会先检查 src/services/ai/runner.py，再生成最小补丁并运行 pytest -k runner。' },
-    { role: 'tool', body: 'apply_patch requested: src/services/ai/runner.py (+24 -8)' },
-    { role: 'agent', body: '测试已通过，等待你批准继续提交变更。' },
-  ]
+  if (!run) return <section className="panel empty-conversation"><h1>{tr(locale, 'chatTitle')}</h1><p>{tr(locale, 'noConversation')}</p></section>
   return (
     <section className="chat-layout">
       <aside className="panel chat-sessions">
         <div className="panel-title"><h2>{tr(locale, 'chatTitle')}</h2><span>{snapshot.runs.length}</span></div>
-        {snapshot.runs.map((item) => (
-          <button key={item.id} className={item.id === run.id ? 'chat-item selected' : 'chat-item'}>
-            <strong>{item.repo}</strong>
-            <span>{item.id} · {item.status}</span>
-          </button>
-        ))}
+        {snapshot.runs.map((item) => <button key={item.id} className={item.id === run.id ? 'chat-item selected' : 'chat-item'}><strong>{item.repo}</strong><span>{item.id} / {item.status}</span></button>)}
       </aside>
       <section className="panel chat-thread">
-        <div className="thread-header">
-          <div>
-            <h1>{run.repo}</h1>
-            <span>{run.branch} / {run.sandbox_id}</span>
-          </div>
-          <button className="primary-action">{tr(locale, 'approve')}</button>
-        </div>
+        <div className="thread-header"><div><h1>{run.repo}</h1><span>{run.branch} / {run.sandbox_id}</span></div></div>
         <div className="messages">
-          {messages.map((message, index) => (
-            <article key={`${message.role}-${index}`} className={`message ${message.role}`}>
-              <span>{message.role}</span>
-              <p>{message.body}</p>
+          <article className="message user"><span>user</span><p>{run.prompt}</p></article>
+          {snapshot.events.map((event) => (
+            <article key={event.id} className={`message ${event.level === 'error' ? 'tool' : 'agent'}`}>
+              <span>{event.event_type}</span>
+              <p>{event.message}</p>
             </article>
           ))}
-          <article className="tool-card">
-            <div className="panel-title"><h2>{tr(locale, 'toolApprovals')}</h2><span>apply_patch</span></div>
-            <p>src/services/ai/runner.py · +24 -8 · pytest passed</p>
-            <div className="actions"><button className="approve">{tr(locale, 'approve')}</button><button className="reject">{tr(locale, 'reject')}</button></div>
-          </article>
         </div>
         <form className="composer" onSubmit={(event) => event.preventDefault()}>
           <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={tr(locale, 'composerPlaceholder')} />
@@ -335,15 +319,15 @@ function ConversationPage({ locale, snapshot }: { locale: Locale; snapshot: Dash
         </form>
       </section>
       <aside className="chat-side">
-        <div className="panel"><div className="panel-title"><h2>{tr(locale, 'terminal')}</h2><span>Tailing</span></div><pre>{snapshot.events.map((event) => `${event.at} ${event.message}`).join('\n')}</pre></div>
-        <div className="panel"><div className="panel-title"><h2>{tr(locale, 'files')}</h2><span>+{run.diff_summary.added} -{run.diff_summary.removed}</span></div><DiffLines run={run} /></div>
+        <div className="panel"><div className="panel-title"><h2>{tr(locale, 'liveLog')}</h2><span>{run.status}</span></div><pre>{snapshot.events.map((event) => `${event.at} [${event.level}] ${event.message}`).join('\n')}</pre></div>
+        <div className="panel"><div className="panel-title"><h2>{tr(locale, 'diffSummary')}</h2><span>+{run.diff_summary.added} -{run.diff_summary.removed}</span></div><DiffLines run={run} /></div>
       </aside>
     </section>
   )
 }
 
 function Brand() {
-  return <div className="brand"><div className="brand-mark">⬡</div><div><strong>SANDBOX</strong><span>CONTROL</span></div></div>
+  return <div className="brand"><div className="brand-mark">S</div><div><strong>SANDBOX</strong><span>CONTROL</span></div></div>
 }
 
 function LocaleSwitch({ locale, setLocale }: { locale: Locale; setLocale: (locale: Locale) => void }) {
@@ -351,72 +335,70 @@ function LocaleSwitch({ locale, setLocale }: { locale: Locale; setLocale: (local
 }
 
 function Sidebar({ locale, snapshot, page, setPage }: { locale: Locale; snapshot: DashboardSnapshot; page: Page; setPage: (page: Page) => void }) {
-  const items = ['overview', 'sandboxes', 'codexSessions', 'conversations', 'templates', 'repos', 'secrets', 'infra', 'audit', 'settings']
+  const items: Page[] = ['codexSessions', 'conversations', 'infra', 'secrets']
   return (
     <aside className="sidebar">
       <Brand />
-      <nav>{items.map((item) => <button key={item} className={page === item ? 'selected' : ''} onClick={() => ['codexSessions', 'conversations', 'infra', 'secrets'].includes(item) && setPage(item as Page)}><span>{glyph[item]}</span>{tr(locale, item)}</button>)}</nav>
+      <nav>{items.map((item) => <button key={item} className={page === item ? 'selected' : ''} onClick={() => setPage(item)}><span>▪</span>{tr(locale, item)}</button>)}</nav>
       <div className="side-stack">
-        <SideStat title={tr(locale, 'localUsers')} value="32" detail="+27" />
-        <SideStat title={tr(locale, 'patVault')} value="23" detail="18 / 3 / 2" />
-        <div className="side-card"><div className="side-title">{tr(locale, 'quota')}</div><Meter label="Sandboxes" value={snapshot.quota.sandboxes} max={snapshot.quota.sandbox_limit} /><Meter label="vCPU" value={snapshot.quota.cpu} max={snapshot.quota.cpu_limit} /><Meter label="RAM" value={snapshot.quota.ram} max={snapshot.quota.ram_limit} /><div className="cost"><span>{tr(locale, 'costEstimate')}</span><strong>${snapshot.quota.cost}</strong></div></div>
+        <SideStat title="Runs" value={String(snapshot.runs.length)} detail="real" />
+        <SideStat title="Audit" value={String(snapshot.audit.length)} detail="events" />
+        <div className="side-card"><div className="side-title">Infra</div><Meter label="Preflight" value={snapshot.preflight.overall_score} max={100} /></div>
       </div>
     </aside>
   )
 }
 
 function CommandBar({ locale, setLocale, logout }: { locale: Locale; setLocale: (locale: Locale) => void; logout: () => void }) {
-  return <header className="command-bar"><div className="selector">Acme Corp</div><div className="selector">Platform</div><div className="env-pill">single-node</div><div className="search">⌕ {tr(locale, 'search')} <kbd>⌘K</kbd></div><button className="ghost-action">＋ {tr(locale, 'createSandbox')}</button><button className="primary-action">＋ {tr(locale, 'createRun')}</button><LocaleSwitch locale={locale} setLocale={setLocale} /><button className="avatar" onClick={logout}>SK</button></header>
+  return <header className="command-bar"><div className="selector">Internal</div><div className="selector">Platform</div><div className="env-pill">single-node</div><div className="search">Real backend / no demo seed data</div><LocaleSwitch locale={locale} setLocale={setLocale} /><button className="avatar" onClick={logout}>{tr(locale, 'logout')}</button></header>
 }
 
 function InfraPreflight({ locale, snapshot }: { locale: Locale; snapshot: DashboardSnapshot }) {
   return (
     <section className="preflight">
       <div className="section-heading"><h2>{tr(locale, 'infraPreflight')}</h2><div className={`health ${snapshot.preflight.overall_status}`}>{snapshot.preflight.overall_score}%</div></div>
-      <div className="preflight-grid">{snapshot.preflight.checks.slice(0, 9).map((check) => <div key={check.id} className={`check ${check.status}`}><div><strong>{check.label}</strong><span>{check.status.toUpperCase()}</span></div><p>{check.summary}</p></div>)}</div>
-      <div className="explainer"><strong>{tr(locale, 'preflightTitle')}</strong><p>{tr(locale, 'preflightText')}</p></div>
+      <div className="preflight-grid">{snapshot.preflight.checks.map((check) => <div key={check.id} className={`check ${check.status}`}><div><strong>{check.label}</strong><span>{check.status.toUpperCase()}</span></div><p>{check.summary}</p></div>)}</div>
     </section>
   )
-}
-
-function RunQueue({ locale, runs, selectedRun, setSelectedRun }: { locale: Locale; runs: CodexRun[]; selectedRun: CodexRun; setSelectedRun: (run: CodexRun) => void }) {
-  return <section className="panel run-queue"><div className="panel-title"><h2>{tr(locale, 'runQueue')}</h2><span>{runs.length}</span></div><div className="filter">⌕ Filter runs</div><div className="run-list">{runs.map((run) => <button key={run.id} className={`run-row ${selectedRun.id === run.id ? 'selected' : ''}`} onClick={() => setSelectedRun(run)}><span className={`status-dot ${run.status}`} /><span><strong>{run.id}</strong><small>{run.repo}<br />{run.branch}</small></span><em>{run.step}</em></button>)}</div></section>
 }
 
 function RunDetail({ locale, run, onAction }: { locale: Locale; run: CodexRun; onAction: (action: string) => void }) {
   return (
     <section className="panel run-detail">
-      <div className="run-header"><div><h1>{run.id}</h1><span className={`state ${run.status}`}>{run.status}</span></div><div className="actions"><button className="approve" onClick={() => onAction('approve')}>{tr(locale, 'approve')}</button><button className="warn">{tr(locale, 'requestChanges')}</button><button className="reject" onClick={() => onAction('reject')}>{tr(locale, 'reject')}</button></div></div>
-      <div className="meta-grid"><Meta label="Repo" value={run.repo} /><Meta label="Branch" value={run.branch} /><Meta label="Sandbox" value={run.sandbox_id} /><Meta label="Template" value={run.template} /><Meta label="Owner" value={run.owner_name} /><Meta label="Runtime" value={formatElapsed(run.elapsed_seconds)} /></div>
-      <div className="safety-row"><Safety label="Network Policy" value="default-deny-egress" /><Safety label="Token Scope" value="repo:read, issues:write" /><Safety label="Egress Limit" value="500 Mbps" /><Safety label="Approval Required" value="On Success" /></div>
-      <div className="run-controls"><button onClick={() => onAction('pause')}>Ⅱ {tr(locale, 'pause')}</button><button>▶ {tr(locale, 'resume')}</button><button className="kill" onClick={() => onAction('kill')}>■ {tr(locale, 'kill')}</button><button className="right">↗ {tr(locale, 'openIde')}</button><button>⬡ {tr(locale, 'openSandbox')}</button></div>
+      <div className="run-header"><div><h1>{run.id}</h1><span className={`state ${run.status}`}>{run.status}</span></div><div className="actions"><button className="approve" onClick={() => onAction('approve')}>{tr(locale, 'approve')}</button><button className="reject" onClick={() => onAction('reject')}>{tr(locale, 'reject')}</button><button className="kill" onClick={() => onAction('kill')}>{tr(locale, 'kill')}</button></div></div>
+      <div className="meta-grid"><Meta label="Repo" value={run.repo} /><Meta label="Branch" value={run.branch} /><Meta label="Sandbox" value={run.sandbox_id} /><Meta label="Template" value={run.template} /><Meta label="Owner" value={run.owner_name} /><Meta label="Step" value={run.step} /></div>
       <Workflow locale={locale} run={run} />
     </section>
   )
 }
 
 function Workflow({ locale, run }: { locale: Locale; run: CodexRun }) {
-  return <div className="workflow"><h2>{tr(locale, 'workflow')}</h2><div className="step-track">{run.workflow.map((step) => <div key={step.id} className={`step ${step.status}`}><span /><strong>{step.label}</strong><small>{step.at ?? '--'}</small></div>)}</div><div className="step-cards">{['Read file', 'Generate patch', 'Apply patch', 'Run tests', 'Commit changes'].map((label, index) => <div key={label} className={index === 2 ? 'active' : ''}><strong>{index < 3 ? '✓' : '⟳'} {label}</strong><small>{index === 2 ? '1.5s' : index < 2 ? 'OK' : '--'}</small></div>)}</div></div>
+  return <div className="workflow"><h2>{tr(locale, 'workflow')}</h2><div className="step-track">{run.workflow.map((step) => <div key={step.id} className={`step ${step.status}`}><span /><strong>{step.label}</strong><small>{step.at ?? '--'}</small></div>)}</div></div>
 }
 
 function LogAndDiff({ locale, run, events }: { locale: Locale; run: CodexRun; events: RunEvent[] }) {
-  return <section className="right-stack"><div className="panel log-panel"><div className="panel-title"><h2>{tr(locale, 'liveLog')}</h2><span>Tailing</span></div><pre>{events.map((event) => `${event.at} [${event.level.toUpperCase()}] ${event.message}`).join('\n')}</pre></div><div className="panel diff-panel"><div className="panel-title"><h2>{tr(locale, 'diffSummary')} <small>{run.diff_summary.file}</small></h2><span>+{run.diff_summary.added} -{run.diff_summary.removed}</span></div><DiffLines run={run} /></div></section>
+  return <section className="right-stack"><div className="panel log-panel"><div className="panel-title"><h2>{tr(locale, 'liveLog')}</h2><span>{events.length}</span></div><pre>{events.map((event) => `${event.at} [${event.level.toUpperCase()}] ${event.message}`).join('\n')}</pre></div><div className="panel diff-panel"><div className="panel-title"><h2>{tr(locale, 'diffSummary')} <small>{run.diff_summary.file}</small></h2><span>+{run.diff_summary.added} -{run.diff_summary.removed}</span></div><DiffLines run={run} /></div></section>
 }
 
 function DiffLines({ run }: { run: CodexRun }) {
-  return <div className="diff-lines">{run.diff_summary.hunks.map((hunk) => <div key={`${hunk.line}-${hunk.text}`} className={hunk.kind}><span>{hunk.line}</span><code>{hunk.text}</code></div>)}</div>
+  if (!run.diff_summary.hunks.length) return <div className="empty-state">No diff collected.</div>
+  return <div className="diff-lines">{run.diff_summary.hunks.map((hunk, index) => <div key={`${hunk.line}-${index}`} className={hunk.kind}><span>{hunk.line}</span><code>{hunk.text}</code></div>)}</div>
 }
 
 function AuditTrail({ locale, audit }: { locale: Locale; audit: AuditEvent[] }) {
-  return <section className="panel audit-panel"><div className="panel-title"><h2>{tr(locale, 'auditTrail')}</h2><span>All Events</span></div><div className="audit-table">{audit.slice(0, 6).map((event) => <div key={event.id}><span>{event.at}</span><strong>{event.actor_name}</strong><em>{event.event_code}</em><code>{event.resource}</code></div>)}</div></section>
+  return <section className="panel audit-panel"><div className="panel-title"><h2>{tr(locale, 'auditTrail')}</h2><span>{audit.length}</span></div><div className="audit-table">{audit.slice(0, 6).map((event) => <div key={event.id}><span>{event.at}</span><strong>{event.actor_name}</strong><em>{event.event_code}</em><code>{event.resource}</code></div>)}</div></section>
 }
 
 function CodexAccountPanel({ locale, status, onStartLogin }: { locale: Locale; status: CodexAuthStatus; onStartLogin: () => void }) {
-  return <section className="panel codex-panel"><div className="panel-title"><h2>{tr(locale, 'codexAccount')}</h2><span>{status.mode}</span></div><div className={`account-state ${status.state}`}>{status.state}</div>{status.login_url ? <code className="login-url">{status.login_url}</code> : null}{status.user_code ? <div className="user-code">{status.user_code}</div> : null}<button className="primary-action" onClick={onStartLogin}>{tr(locale, 'startChatGptLogin')}</button><button className="ghost-action">{tr(locale, 'saveApiKey')}</button><button className="danger-link">{tr(locale, 'logoutCodex')}</button></section>
+  return <section className="panel codex-panel"><div className="panel-title"><h2>{tr(locale, 'codexAccount')}</h2><span>{status.mode}</span></div><div className={`account-state ${status.state}`}>{status.state}</div>{status.login_url ? <code className="login-url">{status.login_url}</code> : null}{status.user_code ? <div className="user-code">{status.user_code}</div> : null}<button className="primary-action" onClick={onStartLogin}>{tr(locale, 'startChatGptLogin')}</button><button className="ghost-action">{tr(locale, 'saveApiKey')}</button></section>
 }
 
-function ResourcePanel({ locale, run }: { locale: Locale; run: CodexRun }) {
-  return <section className="panel resource-panel"><div className="panel-title"><h2>{tr(locale, 'activeSandbox')}: {run.sandbox_id}</h2><span>{run.status}</span></div><div className="radial" style={{ '--value': `${run.resources.cpu}%` } as React.CSSProperties}><strong>{run.resources.cpu}%</strong><span>vCPU</span></div><Meter label="Memory" value={run.resources.memory} max={100} /><Meter label="Disk" value={run.resources.disk} max={100} /><Meter label="Network" value={run.resources.network} max={100} /></section>
+function ResourcePanel({ run }: { run: CodexRun }) {
+  return <section className="panel resource-panel"><div className="panel-title"><h2>{run.sandbox_id}</h2><span>{run.status}</span></div><div className="radial" style={{ '--value': `${run.resources.cpu}%` } as React.CSSProperties}><strong>{run.resources.cpu}%</strong><span>vCPU</span></div><Meter label="Memory" value={run.resources.memory} max={100} /><Meter label="Disk" value={run.resources.disk} max={100} /><Meter label="Network" value={run.resources.network} max={100} /></section>
+}
+
+function EmptyPanel({ text }: { text: string }) {
+  return <section className="panel"><div className="empty-state">{text}</div></section>
 }
 
 function SideStat({ title, value, detail }: { title: string; value: string; detail: string }) {
@@ -429,14 +411,6 @@ function Meter({ label, value, max }: { label: string; value: number; max: numbe
 
 function Meta({ label, value }: { label: string; value: string }) {
   return <div><span>{label}</span><strong>{value}</strong></div>
-}
-
-function Safety({ label, value }: { label: string; value: string }) {
-  return <div><span>◈</span><small>{label}</small><strong>{value}</strong></div>
-}
-
-function formatElapsed(seconds: number) {
-  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
 createRoot(document.getElementById('app')!).render(<App />)

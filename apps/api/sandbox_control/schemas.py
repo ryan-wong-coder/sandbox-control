@@ -146,9 +146,9 @@ class SecretSummary(BaseModel):
 
 
 class CodexRunCreateRequest(BaseModel):
-    repo: str = "acme/web-app"
-    branch: str = "feat/ai-refactor"
-    prompt: str = "Review the runner and prepare a safe patch."
+    repo: str = ""
+    branch: str = "main"
+    prompt: str = ""
     template: str = "python-3.11"
 
 
@@ -205,7 +205,7 @@ class DashboardSnapshot(BaseModel):
     components: list[ComponentHealth]
     sandboxes: list[Sandbox]
     runs: list[CodexRun]
-    selected_run: CodexRun
+    selected_run: CodexRun | None
     events: list[RunEvent]
     audit: list[AuditEvent]
     codex_auth: CodexAuthStatus

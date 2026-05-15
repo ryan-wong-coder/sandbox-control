@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 import subprocess
 import os
+import shutil
 from pathlib import Path
 
 from .schemas import ApiMessage, CodexAuthStatus, now_iso
@@ -26,23 +27,29 @@ class CodexAuthManager:
         auth_home = self.user_codex_home(user_id)
         auth_home.mkdir(parents=True, exist_ok=True)
 
-        if self.settings.codex_login_mode == "real":
-            status = self._try_real_device_auth(user_id, auth_home, login_id)
-        else:
+        if self.settings.codex_login_mode == "mock":
             status = CodexAuthStatus(
                 mode="chatgpt",
-                state="pending",
+                state="failed",
                 account_label=None,
                 token_fingerprint=None,
                 last_checked_at=now_iso(),
                 fallback_api_key=self.status_for(user_id).fallback_api_key,
-                login_url=f"http://localhost:1455/mock-codex-login/{login_id}",
-                user_code=login_id[-6:].upper(),
             )
+        else:
+            status = self._try_real_device_auth(user_id, auth_home, login_id)
         self.store.codex_auth[user_id] = status
-        return login_id, status, ApiMessage(code="codex.login.started", message_key="codex.login.started")
+        message_key = "codex.login.failed" if status.state == "failed" else "codex.login.started"
+        return login_id, status, ApiMessage(code=message_key, message_key=message_key)
 
     def _try_real_device_auth(self, user_id: str, auth_home: Path, login_id: str) -> CodexAuthStatus:
+        if not shutil.which(self.settings.codex_command):
+            return CodexAuthStatus(
+                mode="chatgpt",
+                state="failed",
+                last_checked_at=now_iso(),
+                fallback_api_key=self.status_for(user_id).fallback_api_key,
+            )
         try:
             process = subprocess.Popen(
                 [self.settings.codex_command, "login", "--device-auth"],
@@ -55,14 +62,19 @@ class CodexAuthManager:
             line = process.stdout.readline() if process.stdout else ""
             login_url = _extract_url(line)
         except Exception:
-            login_url = None
+            return CodexAuthStatus(
+                mode="chatgpt",
+                state="failed",
+                last_checked_at=now_iso(),
+                fallback_api_key=self.status_for(user_id).fallback_api_key,
+            )
         return CodexAuthStatus(
             mode="chatgpt",
-            state="pending",
+            state="pending" if login_url else "failed",
             last_checked_at=now_iso(),
             fallback_api_key=self.status_for(user_id).fallback_api_key,
-            login_url=login_url or f"codex://device-auth/{login_id}",
-            user_code=login_id[-6:].upper(),
+            login_url=login_url,
+            user_code=login_id[-6:].upper() if login_url else None,
         )
 
     def cancel_login(self, user_id: str) -> CodexAuthStatus:

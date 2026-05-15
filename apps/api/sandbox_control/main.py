@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from pathlib import Path
 from typing import Annotated
 
@@ -14,6 +15,7 @@ from .codex_auth import CodexAuthManager
 from .crypto import SecretBox
 from .i18n import CATALOGS, get_catalog
 from .preflight import component_health, run_preflight
+from .runner import run_codex_job
 from .schemas import (
     ApiKeyRequest,
     ApiMessage,
@@ -84,7 +86,7 @@ def catalog(locale: str = "zh-CN") -> dict[str, object]:
 @app.get("/api/dashboard", response_model=DashboardSnapshot)
 def dashboard(user: User = Depends(current_user)) -> DashboardSnapshot:
     runs = list(store.runs.values())
-    selected = runs[0]
+    selected = runs[0] if runs else None
     return DashboardSnapshot(
         user=user,
         preflight=run_preflight(),
@@ -92,10 +94,19 @@ def dashboard(user: User = Depends(current_user)) -> DashboardSnapshot:
         sandboxes=list(store.sandboxes.values()),
         runs=runs,
         selected_run=selected,
-        events=store.events.get(selected.id, []),
+        events=store.events.get(selected.id, []) if selected else [],
         audit=store.audit[:20],
         codex_auth=codex_auth.status_for(user.id),
-        quota={"sandboxes": 87, "sandbox_limit": 150, "cpu": 48, "cpu_limit": 80, "ram": 196, "ram_limit": 320, "cost": 142.37},
+        quota={
+            "sandboxes": len(store.sandboxes),
+            "sandbox_limit": 150,
+            "runs": len(store.runs),
+            "cpu": 0,
+            "cpu_limit": 80,
+            "ram": 0,
+            "ram_limit": 320,
+            "cost": 0,
+        },
     )
 
 
@@ -181,6 +192,11 @@ def codex_runs(user: User = Depends(current_user)):
 @app.post("/api/codex-runs")
 def create_codex_run(payload: CodexRunCreateRequest, user: User = Depends(current_user)):
     run = store.create_run(user, payload.repo, payload.branch, payload.prompt, payload.template)
+    threading.Thread(
+        target=run_codex_job,
+        args=(run.id, settings, store, codex_auth),
+        daemon=True,
+    ).start()
     return {"run": run, "message": ApiMessage(code="run.created", message_key="run.created")}
 
 
@@ -208,11 +224,14 @@ def codex_run_action(run_id: str, action: str, user: User = Depends(current_user
 async def codex_run_events(run_id: str, user: User = Depends(current_user)):
     async def event_stream():
         sent = 0
-        while sent < 4:
+        while True:
             events = store.events.get(run_id, [])
             for event in events[sent:]:
                 yield f"event: codex-event\ndata: {event.model_dump_json()}\n\n"
                 sent += 1
+            run = store.runs.get(run_id)
+            if run and run.status in {RunStatus.completed, RunStatus.failed, RunStatus.review, RunStatus.killed} and sent >= len(events):
+                break
             await asyncio.sleep(0.5)
         yield f"event: heartbeat\ndata: {json.dumps({'run_id': run_id})}\n\n"
 
