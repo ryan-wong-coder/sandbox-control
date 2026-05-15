@@ -10,6 +10,7 @@ Sandbox Control 是一个多人内部控制台，用于实验性自建 E2B 风�
 - 每用户独立的加密密钥摘要，用于 Git PAT、Codex/ChatGPT token 和 API key 备用登录。
 - Codex auth 接口，支持每用户 ChatGPT 登录流程、取消、退出和 OpenAI API key 备用路径。
 - Codex 运行队列、运行详情、工作流时间线、审批控制、日志、diff 摘要和审计事件。
+- 真实 Codex worker 路径：clone 仓库、执行 `codex exec --json`、流式记录进程输出并收集 `git diff`。
 - 独立 Codex 对话页，包含消息流、工具审批卡片、终端流和文件/diff 侧栏。
 - 单机基础设施预检，覆盖 Linux、CPU 虚拟化、`/dev/kvm`、Firecracker、Docker、cgroup、TUN/TAP、磁盘和默认端口。
 - 已实现产品界面的完整中英文 UI 文案。
@@ -48,6 +49,8 @@ sudo bash deploy/scripts/install-infra.sh
 ```
 
 该脚本会安装 Firecracker、`jailer` 和宿主机 Nomad dev agent，验证 `/dev/kvm`，然后通过 Docker Compose 启动控制面和 infra 组件。控制台默认仍然访问 `http://<server>:8080`；Caddy edge proxy 暴露在 `:8088`。
+
+API 镜像会安装 Git 和 `@openai/codex`。如果 ChatGPT 登录或 `codex exec` 无法启动，UI 会显示真实失败原因，不再展示 demo 输出。
 
 ## 仓库结构
 

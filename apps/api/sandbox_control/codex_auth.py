@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-import secrets
-import subprocess
 import os
+import queue
+import secrets
 import shutil
+import subprocess
+import threading
+import time
 from pathlib import Path
 
 from .schemas import ApiMessage, CodexAuthStatus, now_iso
@@ -59,8 +62,25 @@ class CodexAuthManager:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
-            line = process.stdout.readline() if process.stdout else ""
-            login_url = _extract_url(line)
+            lines: queue.Queue[str] = queue.Queue()
+
+            def read_output() -> None:
+                if not process.stdout:
+                    return
+                for output_line in process.stdout:
+                    lines.put(output_line)
+
+            threading.Thread(target=read_output, daemon=True).start()
+            login_url = None
+            deadline = time.time() + 8
+            while time.time() < deadline and not login_url:
+                try:
+                    login_url = _extract_url(lines.get(timeout=0.5))
+                except queue.Empty:
+                    if process.poll() is not None:
+                        break
+            if not login_url and process.poll() is None:
+                process.terminate()
         except Exception:
             return CodexAuthStatus(
                 mode="chatgpt",

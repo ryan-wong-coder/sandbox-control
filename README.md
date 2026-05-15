@@ -10,6 +10,7 @@ Sandbox Control is an internal, multi-user control plane for experimental self-h
 - Per-user encrypted secret summaries for Git PATs, Codex/ChatGPT tokens, and API-key fallback.
 - Codex auth endpoints for per-user ChatGPT login flow, cancellation, logout, and OpenAI API-key fallback.
 - Codex run queue, selected run detail, workflow timeline, approval controls, logs, diff summary, and audit events.
+- Real Codex worker path: clone a repository, run `codex exec --json`, stream process output, and collect `git diff`.
 - A dedicated Codex conversation page with messages, tool approval cards, terminal stream, and file/diff rail.
 - Single-node infrastructure preflight for Linux, CPU virtualization, `/dev/kvm`, Firecracker, Docker, cgroup, TUN/TAP, disk, and default port availability.
 - Full Chinese and English UI copy for the implemented product chrome.
@@ -48,6 +49,8 @@ sudo bash deploy/scripts/install-infra.sh
 ```
 
 This installs Firecracker, jailer, and a host Nomad dev agent, verifies `/dev/kvm`, then starts the control-plane services with Docker Compose. The dashboard remains on `http://<server>:8080`; the Caddy edge proxy is exposed on `:8088`.
+
+The API image installs Git and `@openai/codex`. If ChatGPT login or `codex exec` cannot start, the UI reports the real failure instead of showing demo output.
 
 ## Repository Layout
 

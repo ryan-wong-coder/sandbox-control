@@ -8,6 +8,11 @@ RUN npm run build
 FROM python:3.12-slim AS api
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates git nodejs npm \
+  && npm install -g @openai/codex@0.130.0 \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
 COPY deploy/requirements-runtime.txt ./deploy/requirements-runtime.txt
 COPY deploy/wheels ./deploy/wheels
 RUN if find ./deploy/wheels -maxdepth 1 -name '*.whl' | grep -q .; then \
