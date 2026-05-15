@@ -22,3 +22,5 @@ apps/api/.runtime/
 apps/web/.vite/
 docs/log/*.md
 !docs/log/.gitkeep
+deploy/wheels/*
+!deploy/wheels/.gitkeep

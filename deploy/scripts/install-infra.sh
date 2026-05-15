@@ -10,7 +10,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar iproute2 iptables openssl
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar iproute2 iptables openssl python3-pip
 
 bash deploy/scripts/install-firecracker.sh
 
@@ -25,6 +25,9 @@ fi
 
 chmod +x deploy/scripts/preflight.sh
 bash deploy/scripts/preflight.sh || true
+
+mkdir -p deploy/wheels
+python3 -m pip download -r deploy/requirements-runtime.txt --dest deploy/wheels
 
 COMPOSE_PROGRESS=plain docker compose --progress plain -f deploy/compose.yml up -d --build
 docker compose -f deploy/compose.yml ps
