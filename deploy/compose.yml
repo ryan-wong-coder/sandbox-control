@@ -13,15 +13,21 @@ services:
       SANDBOX_CONTROL_FRONTEND_DIST: apps/web/dist
     ports:
       - "8080:8080"
+    devices:
+      - /dev/kvm:/dev/kvm
+      - /dev/net/tun:/dev/net/tun
     volumes:
       - sandbox-control-runtime:/app/apps/api/.runtime
+      - /usr/local/bin/firecracker:/usr/local/bin/firecracker:ro
+      - /usr/local/bin/jailer:/usr/local/bin/jailer:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
     depends_on:
       - postgres
       - redis
       - minio
       - registry
       - consul
-      - nomad
     restart: unless-stopped
 
   postgres:
@@ -72,21 +78,6 @@ services:
       - consul-data:/consul/data
     restart: unless-stopped
 
-  nomad:
-    image: hashicorp/nomad:latest
-    command: agent -dev -bind=0.0.0.0
-    privileged: true
-    environment:
-      NOMAD_ADDR: http://127.0.0.1:4646
-    ports:
-      - "4646:4646"
-      - "4647:4647"
-      - "4648:4648"
-    volumes:
-      - nomad-data:/nomad/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
-
   edge-proxy:
     image: caddy:2-alpine
     command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -106,6 +97,5 @@ volumes:
   minio-data:
   registry-data:
   consul-data:
-  nomad-data:
   caddy-data:
   caddy-config:

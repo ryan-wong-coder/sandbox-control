@@ -13,6 +13,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar iproute2 iptables openssl python3-pip
 
 bash deploy/scripts/install-firecracker.sh
+bash deploy/scripts/install-nomad.sh
 
 if [ ! -f .env ]; then
   cp .env.example .env
@@ -29,5 +30,5 @@ bash deploy/scripts/preflight.sh || true
 mkdir -p deploy/wheels
 python3 -m pip download --retries 1 --timeout 15 --progress-bar off -r deploy/requirements-runtime.txt --dest deploy/wheels
 
-COMPOSE_PROGRESS=plain docker compose --progress plain -f deploy/compose.yml up -d --build
+COMPOSE_PROGRESS=plain docker compose --progress plain -f deploy/compose.yml up -d --build --remove-orphans
 docker compose -f deploy/compose.yml ps

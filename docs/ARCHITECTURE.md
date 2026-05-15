@@ -11,7 +11,7 @@ flowchart LR
   Provider --> Local[Single-node Experimental Runtime]
   Local --> Preflight[KVM / Firecracker Preflight]
   Local --> Firecracker[Firecracker + Jailer]
-  Local --> Infra[Postgres, Redis, MinIO, Registry, Consul, Nomad, Edge Proxy]
+  Local --> Infra[Host Nomad, Postgres, Redis, MinIO, Registry, Consul, Edge Proxy]
 ```
 
 ## Runtime Boundaries
@@ -20,9 +20,9 @@ The control plane can run without Firecracker. Firecracker-backed sandboxes requ
 
 ## Single-Node Infra
 
-`deploy/scripts/install-firecracker.sh` installs Firecracker and jailer from the official release artifacts. `deploy/scripts/install-infra.sh` runs host package setup, Firecracker install, preflight, and the Docker Compose stack.
+`deploy/scripts/install-firecracker.sh` installs Firecracker and jailer from the official release artifacts. `deploy/scripts/install-nomad.sh` installs a host Nomad dev agent managed by systemd. `deploy/scripts/install-infra.sh` runs host package setup, Firecracker/Nomad install, preflight, and the Docker Compose stack.
 
-The compose stack includes Postgres, Redis, MinIO, registry, Consul, Nomad, Caddy edge proxy, and the Sandbox Control service.
+The compose stack includes Postgres, Redis, MinIO, registry, Consul, Caddy edge proxy, and the Sandbox Control service. Nomad runs on the host so it can use the host Docker/runtime environment directly.
 
 ## Codex Identity
 

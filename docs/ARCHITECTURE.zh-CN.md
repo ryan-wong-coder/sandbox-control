@@ -11,7 +11,7 @@ flowchart LR
   Provider --> Local[单机实验 Runtime]
   Local --> Preflight[KVM / Firecracker 预检]
   Local --> Firecracker[Firecracker + Jailer]
-  Local --> Infra[Postgres, Redis, MinIO, Registry, Consul, Nomad, Edge Proxy]
+  Local --> Infra[宿主机 Nomad, Postgres, Redis, MinIO, Registry, Consul, Edge Proxy]
 ```
 
 ## 运行边界
@@ -20,9 +20,9 @@ flowchart LR
 
 ## 单机 Infra
 
-`deploy/scripts/install-firecracker.sh` 会从官方 release artifact 安装 `firecracker` 和 `jailer`。`deploy/scripts/install-infra.sh` 会完成主机包安装、Firecracker 安装、preflight 和 Docker Compose stack 启动。
+`deploy/scripts/install-firecracker.sh` 会从官方 release artifact 安装 `firecracker` 和 `jailer`。`deploy/scripts/install-nomad.sh` 会安装由 systemd 管理的宿主机 Nomad dev agent。`deploy/scripts/install-infra.sh` 会完成主机包安装、Firecracker/Nomad 安装、preflight 和 Docker Compose stack 启动。
 
-Compose stack 包含 Postgres、Redis、MinIO、registry、Consul、Nomad、Caddy edge proxy 和 Sandbox Control 服务。
+Compose stack 包含 Postgres、Redis、MinIO、registry、Consul、Caddy edge proxy 和 Sandbox Control 服务。Nomad 运行在宿主机上，以便直接使用宿主机 Docker/runtime 环境。
 
 ## Codex 身份
 
