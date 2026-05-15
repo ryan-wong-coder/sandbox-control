@@ -10,12 +10,17 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar iproute2 iptables
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl tar iproute2 iptables openssl
 
 bash deploy/scripts/install-firecracker.sh
 
 if [ ! -f .env ]; then
   cp .env.example .env
+fi
+
+if grep -q '^SANDBOX_CONTROL_SECRET_KEY=change-me-to-a-long-random-value$' .env; then
+  secret_key="$(openssl rand -base64 48)"
+  sed -i "s|^SANDBOX_CONTROL_SECRET_KEY=.*$|SANDBOX_CONTROL_SECRET_KEY=${secret_key}|" .env
 fi
 
 chmod +x deploy/scripts/preflight.sh
