@@ -10,11 +10,19 @@ flowchart LR
   API --> Provider[Sandbox Provider Adapter]
   Provider --> Local[Single-node Experimental Runtime]
   Local --> Preflight[KVM / Firecracker Preflight]
+  Local --> Firecracker[Firecracker + Jailer]
+  Local --> Infra[Postgres, Redis, MinIO, Registry, Consul, Nomad, Edge Proxy]
 ```
 
 ## Runtime Boundaries
 
 The control plane can run without Firecracker. Firecracker-backed sandboxes require Linux KVM support, exposed CPU virtualization, `/dev/kvm`, network devices, and enough disk/memory. The Infra page reports blockers instead of hiding them.
+
+## Single-Node Infra
+
+`deploy/scripts/install-firecracker.sh` installs Firecracker and jailer from the official release artifacts. `deploy/scripts/install-infra.sh` runs host package setup, Firecracker install, preflight, and the Docker Compose stack.
+
+The compose stack includes Postgres, Redis, MinIO, registry, Consul, Nomad, Caddy edge proxy, and the Sandbox Control service.
 
 ## Codex Identity
 

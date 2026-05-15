@@ -14,6 +14,13 @@ services:
       - "8080:8080"
     volumes:
       - sandbox-control-runtime:/app/apps/api/.runtime
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - registry
+      - consul
+      - nomad
     restart: unless-stopped
 
   postgres:
@@ -44,7 +51,60 @@ services:
     volumes:
       - minio-data:/data
 
+  registry:
+    image: registry:2
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    ports:
+      - "5000:5000"
+    volumes:
+      - registry-data:/var/lib/registry
+    restart: unless-stopped
+
+  consul:
+    image: hashicorp/consul:latest
+    command: agent -dev -client=0.0.0.0 -ui
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    volumes:
+      - consul-data:/consul/data
+    restart: unless-stopped
+
+  nomad:
+    image: hashicorp/nomad:latest
+    command: agent -dev -bind=0.0.0.0
+    privileged: true
+    environment:
+      NOMAD_ADDR: http://127.0.0.1:4646
+    ports:
+      - "4646:4646"
+      - "4647:4647"
+      - "4648:4648"
+    volumes:
+      - nomad-data:/nomad/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  edge-proxy:
+    image: caddy:2-alpine
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - "8088:8088"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - sandbox-control
+    restart: unless-stopped
+
 volumes:
   sandbox-control-runtime:
   postgres-data:
   minio-data:
+  registry-data:
+  consul-data:
+  nomad-data:
+  caddy-data:
+  caddy-config:

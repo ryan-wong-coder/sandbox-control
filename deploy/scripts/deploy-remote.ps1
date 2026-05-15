@@ -18,7 +18,7 @@ Write-Host "Uploading to $HostName..."
 ssh "$User@$HostName" "mkdir -p $RemoteDir"
 scp $archive "$User@$HostName:$RemoteDir/sandbox-control.tar"
 
-Write-Host "Deploying..."
-ssh "$User@$HostName" "cd $RemoteDir && tar -xf sandbox-control.tar && cp .env.example .env 2>/dev/null || true && docker compose -f deploy/compose.yml up -d --build"
+Write-Host "Deploying Firecracker and infra..."
+ssh "$User@$HostName" "cd $RemoteDir && tar -xf sandbox-control.tar && bash deploy/scripts/install-infra.sh"
 
 Write-Host "Done: http://$HostName:8080"

@@ -142,15 +142,38 @@ def run_preflight() -> InfraPreflight:
     )
 
 
+def _version(command: list[str]) -> str | None:
+    code, output = _run(command)
+    if code != 0 or not output:
+        return None
+    return output.splitlines()[0][:80]
+
+
+def _health_for_port(port: int, healthy: str, missing: str) -> tuple[str, str]:
+    return ("healthy", healthy) if _check_port(port) else ("failed", missing)
+
+
 def component_health() -> list[ComponentHealth]:
+    kvm_ok = Path("/dev/kvm").exists() and os.access("/dev/kvm", os.R_OK | os.W_OK)
+    firecracker_version = _version(["firecracker", "--version"]) if shutil.which("firecracker") else None
+    docker_version = _version(["docker", "version", "--format", "{{.Server.Version}}"]) if shutil.which("docker") else None
+    consul_status, consul_summary = _health_for_port(8500, "HTTP API reachable", "port 8500 closed")
+    nomad_status, nomad_summary = _health_for_port(4646, "HTTP API reachable", "port 4646 closed")
+    postgres_status, postgres_summary = _health_for_port(5432, "port 5432 reachable", "port 5432 closed")
+    redis_status, redis_summary = _health_for_port(6379, "port 6379 reachable", "port 6379 closed")
+    minio_status, minio_summary = _health_for_port(9000, "port 9000 reachable", "port 9000 closed")
+    registry_status, registry_summary = _health_for_port(5000, "port 5000 reachable", "port 5000 closed")
+    edge_status, edge_summary = _health_for_port(8088, "reverse proxy reachable", "port 8088 closed")
+
     return [
-        ComponentHealth(id="kvm", label="KVM", status="healthy", version="host", summary="preflight gated", sparkline=[78, 80, 83, 82, 86]),
-        ComponentHealth(id="firecracker", label="Firecracker", status="healthy", version="v1.12.x", summary="microVM runtime", sparkline=[60, 64, 68, 70, 72]),
-        ComponentHealth(id="nomad", label="Nomad", status="healthy", version="v1.6.4", summary="scheduler", sparkline=[50, 54, 53, 57, 61]),
-        ComponentHealth(id="consul", label="Consul", status="healthy", version="v1.16.2", summary="service discovery", sparkline=[70, 72, 74, 73, 75]),
-        ComponentHealth(id="postgres", label="Postgres", status="healthy", version="15.5", summary="control data", sparkline=[66, 63, 65, 67, 69]),
-        ComponentHealth(id="redis", label="Redis", status="healthy", version="7.2.4", summary="events and queues", sparkline=[58, 61, 62, 64, 66]),
-        ComponentHealth(id="object_store", label="Object Store", status="warn", version="MinIO", summary="low space", sparkline=[45, 44, 43, 41, 39]),
-        ComponentHealth(id="registry", label="Registry", status="healthy", version="Harbor", summary="template images", sparkline=[62, 63, 65, 68, 70]),
-        ComponentHealth(id="edge_proxy", label="Edge Proxy", status="healthy", version="Caddy", summary="port routing", sparkline=[80, 81, 80, 83, 84]),
+        ComponentHealth(id="kvm", label="KVM", status="healthy" if kvm_ok else "failed", version="host", summary="read/write /dev/kvm" if kvm_ok else "/dev/kvm unavailable", sparkline=[78, 80, 83, 82, 86]),
+        ComponentHealth(id="firecracker", label="Firecracker", status="healthy" if firecracker_version else "failed", version=firecracker_version or "not installed", summary="microVM runtime", sparkline=[60, 64, 68, 70, 72]),
+        ComponentHealth(id="docker", label="Docker", status="healthy" if docker_version else "failed", version=docker_version or "not running", summary="control-plane runtime", sparkline=[62, 64, 66, 65, 68]),
+        ComponentHealth(id="nomad", label="Nomad", status=nomad_status, version="container", summary=nomad_summary, sparkline=[50, 54, 53, 57, 61]),
+        ComponentHealth(id="consul", label="Consul", status=consul_status, version="container", summary=consul_summary, sparkline=[70, 72, 74, 73, 75]),
+        ComponentHealth(id="postgres", label="Postgres", status=postgres_status, version="container", summary=postgres_summary, sparkline=[66, 63, 65, 67, 69]),
+        ComponentHealth(id="redis", label="Redis", status=redis_status, version="container", summary=redis_summary, sparkline=[58, 61, 62, 64, 66]),
+        ComponentHealth(id="object_store", label="Object Store", status=minio_status, version="MinIO", summary=minio_summary, sparkline=[45, 44, 43, 41, 39]),
+        ComponentHealth(id="registry", label="Registry", status=registry_status, version="registry:2", summary=registry_summary, sparkline=[62, 63, 65, 68, 70]),
+        ComponentHealth(id="edge_proxy", label="Edge Proxy", status=edge_status, version="Caddy", summary=edge_summary, sparkline=[80, 81, 80, 83, 84]),
     ]

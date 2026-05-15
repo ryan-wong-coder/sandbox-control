@@ -13,7 +13,8 @@ Sandbox Control 是一个多人内部控制台，用于实验性自建 E2B 风�
 - 独立 Codex 对话页，包含消息流、工具审批卡片、终端流和文件/diff 侧栏。
 - 单机基础设施预检，覆盖 Linux、CPU 虚拟化、`/dev/kvm`、Firecracker、Docker、cgroup、TUN/TAP、磁盘和默认端口。
 - 已实现产品界面的完整中英文 UI 文案。
-- 面向本地/内部部署的 Docker Compose 文件。
+- Firecracker 主机安装脚本和面向本地/内部部署的 Docker Compose 文件。
+- 实验版单机 infra 组件：Postgres、Redis、MinIO、registry、Consul、Nomad 和 Caddy edge proxy。
 
 ## 为什么 KVM / Firecracker 重要
 
@@ -36,6 +37,17 @@ uv run uvicorn sandbox_control.main:app --app-dir apps/api --host 0.0.0.0 --port
 
 - 用户名：`admin`
 - 密码：`sandbox-control-admin`
+
+## 单机 Infra 安装
+
+在目标 Ubuntu 服务器上执行：
+
+```bash
+cd /opt/sandbox-control
+sudo bash deploy/scripts/install-infra.sh
+```
+
+该脚本会按 Firecracker 官方 GitHub release 流程安装 `firecracker` 和 `jailer` 二进制，验证 `/dev/kvm`，然后通过 Docker Compose 启动控制面和 infra 组件。控制台默认仍然访问 `http://<server>:8080`；Caddy edge proxy 暴露在 `:8088`。
 
 ## 仓库结构
 

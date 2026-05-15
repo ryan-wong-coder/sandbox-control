@@ -13,7 +13,8 @@ Sandbox Control is an internal, multi-user control plane for experimental self-h
 - A dedicated Codex conversation page with messages, tool approval cards, terminal stream, and file/diff rail.
 - Single-node infrastructure preflight for Linux, CPU virtualization, `/dev/kvm`, Firecracker, Docker, cgroup, TUN/TAP, disk, and default port availability.
 - Full Chinese and English UI copy for the implemented product chrome.
-- Docker Compose assets for local/internal deployment.
+- Firecracker host installer and Docker Compose assets for local/internal deployment.
+- Experimental single-node infra services: Postgres, Redis, MinIO, registry, Consul, Nomad, and Caddy edge proxy.
 
 ## Why KVM / Firecracker Matter
 
@@ -36,6 +37,17 @@ Default development login:
 
 - Username: `admin`
 - Password: `sandbox-control-admin`
+
+## Single-Node Infra Install
+
+On the target Ubuntu server:
+
+```bash
+cd /opt/sandbox-control
+sudo bash deploy/scripts/install-infra.sh
+```
+
+This installs the Firecracker and jailer binaries from the official Firecracker GitHub release flow, verifies `/dev/kvm`, then starts the control-plane services with Docker Compose. The dashboard remains on `http://<server>:8080`; the Caddy edge proxy is exposed on `:8088`.
 
 ## Repository Layout
 
