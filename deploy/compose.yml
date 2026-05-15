@@ -1,0 +1,50 @@
+services:
+  sandbox-control:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: sandbox-control:local
+    env_file:
+      - ../.env
+    environment:
+      SANDBOX_CONTROL_API_HOST: 0.0.0.0
+      SANDBOX_CONTROL_API_PORT: "8080"
+      SANDBOX_CONTROL_FRONTEND_DIST: apps/web/dist
+    ports:
+      - "8080:8080"
+    volumes:
+      - sandbox-control-runtime:/app/apps/api/.runtime
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: sandbox-control
+      POSTGRES_USER: sandbox-control
+      POSTGRES_DB: sandbox-control
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: sandbox
+      MINIO_ROOT_PASSWORD: sandbox-control-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+volumes:
+  sandbox-control-runtime:
+  postgres-data:
+  minio-data:
