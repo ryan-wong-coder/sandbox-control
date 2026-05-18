@@ -79,18 +79,23 @@ class CodexAuthManager:
 
             threading.Thread(target=read_output, daemon=True).start()
             login_url = None
+            user_code = None
             deadline = time.time() + 8
-            while time.time() < deadline and not login_url:
+            while time.time() < deadline and not (login_url and user_code):
                 try:
                     line = lines.get(timeout=0.5)
                     output_lines.append(line)
-                    login_url = _extract_url(line)
+                    login_url = login_url or _extract_url(line)
+                    user_code = user_code or _extract_user_code(line)
                 except queue.Empty:
                     if process.poll() is not None:
                         break
             while True:
                 try:
-                    output_lines.append(lines.get_nowait())
+                    line = lines.get_nowait()
+                    output_lines.append(line)
+                    login_url = login_url or _extract_url(line)
+                    user_code = user_code or _extract_user_code(line)
                 except queue.Empty:
                     break
             if not login_url and process.poll() is None:
@@ -110,7 +115,7 @@ class CodexAuthManager:
             last_checked_at=now_iso(),
             fallback_api_key=self.status_for(user_id).fallback_api_key,
             login_url=login_url,
-            user_code=login_id[-6:].upper() if login_url else None,
+            user_code=user_code,
             last_error_key=error_key,
             last_error_params=error_params,
         )
@@ -151,10 +156,24 @@ class CodexAuthManager:
         return self.settings.runtime_dir / "codex-home" / user_id
 
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return ANSI_RE.sub("", text)
+
+
 def _extract_url(text: str) -> str | None:
-    for token in text.split():
-        if token.startswith("http://") or token.startswith("https://"):
-            return token
+    match = re.search(r"https?://\S+", _strip_ansi(text))
+    if match:
+        return match.group(0).rstrip(").,")
+    return None
+
+
+def _extract_user_code(text: str) -> str | None:
+    match = re.search(r"\b[A-Z0-9]{4}-[A-Z0-9]{4,8}\b", _strip_ansi(text))
+    if match:
+        return match.group(0)
     return None
 
 

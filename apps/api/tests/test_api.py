@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("SANDBOX_CONTROL_CODEX_LOGIN_MODE", "mock")
 
 from sandbox_control.main import app
+from sandbox_control.codex_auth import _extract_url, _extract_user_code
 
 
 client = TestClient(app)
@@ -34,6 +35,11 @@ def test_i18n_catalogs_have_matching_keys() -> None:
     en = client.get("/api/i18n/catalog?locale=en-US").json()["messages"]
     assert set(zh.keys()) == set(en.keys())
     assert "codex.login.started" in zh
+
+
+def test_codex_login_output_parses_ansi_wrapped_url_and_code() -> None:
+    assert _extract_url("\x1b[94mhttps://example.com/device?x=1\x1b[0m") == "https://example.com/device?x=1"
+    assert _extract_user_code("\x1b[94mABCD-EFGHP\x1b[0m") == "ABCD-EFGHP"
 
 
 def test_codex_login_and_api_key_fallback() -> None:
